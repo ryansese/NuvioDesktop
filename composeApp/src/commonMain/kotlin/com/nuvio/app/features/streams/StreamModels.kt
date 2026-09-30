@@ -19,6 +19,7 @@ data class StreamItem(
     val infoHash: String? = null,
     val fileIdx: Int? = null,
     val externalUrl: String? = null,
+    val ytId: String? = null,
     val sources: List<String> = emptyList(),
     val sourceName: String? = null,
     val addonName: String,
@@ -53,8 +54,20 @@ data class StreamItem(
             ?.trim()
             ?.takeIf { it.isNotEmpty() && !it.isMagnetLink() && !it.isTorrentSchemeUrl() }
 
-    val shouldOpenExternally: Boolean
+    /** YouTube watch URL for `ytId` streams and YouTube `externalUrl` streams. */
+    val youtubeWatchUrl: String?
+        get() = ytId?.trim()?.takeIf { it.isNotEmpty() }?.let { "https://www.youtube.com/watch?v=$it" }
+            ?: externalUrl?.trim()?.takeIf { it.isYouTubeUrl() }
+
+    val isYouTube: Boolean
         get() = url.isNullOrBlank() &&
+            infoHash.isNullOrBlank() &&
+            clientResolve == null &&
+            youtubeWatchUrl != null
+
+    val shouldOpenExternally: Boolean
+        get() = !isYouTube &&
+            url.isNullOrBlank() &&
             infoHash.isNullOrBlank() &&
             clientResolve == null &&
             externalOpenUrl != null
@@ -110,7 +123,7 @@ data class StreamItem(
         get() = isInstalledAddonStream && (needsLocalDebridResolve || isDirectDebridStream)
 
     val hasPlayableSource: Boolean
-        get() = url != null || infoHash != null || externalUrl != null || clientResolve != null
+        get() = url != null || infoHash != null || externalUrl != null || ytId != null || clientResolve != null
 }
 
 data class StreamBadge(
@@ -127,6 +140,13 @@ fun normalizeStreamType(raw: String?): String? =
 
 private fun String?.isMagnetLink(): Boolean =
     this?.trimStart()?.startsWith("magnet:", ignoreCase = true) == true
+
+private val YouTubeUrlRegex = Regex(
+    "^https?://(?:(?:www|m|music)\\.)?(?:youtube\\.com/(?:watch\\?(?:.*&)?v=|shorts/|embed/|live/)|youtu\\.be/)[\\w-]{6,}",
+    RegexOption.IGNORE_CASE,
+)
+
+private fun String.isYouTubeUrl(): Boolean = YouTubeUrlRegex.containsMatchIn(trim())
 
 private fun String?.isTorrentSchemeUrl(): Boolean =
     this?.trimStart()?.startsWith("torrent://", ignoreCase = true) == true
@@ -173,6 +193,7 @@ private fun String?.extractBtihInfoHash(): String? {
 
 fun StreamItem.isSelectableForPlayback(debridEnabled: Boolean): Boolean =
     playableDirectUrl != null ||
+        isYouTube ||
         shouldOpenExternally ||
         (AppFeaturePolicy.p2pEnabled && needsLocalDebridResolve && p2pInfoHash != null) ||
         (debridEnabled && isAddonDebridCandidate)

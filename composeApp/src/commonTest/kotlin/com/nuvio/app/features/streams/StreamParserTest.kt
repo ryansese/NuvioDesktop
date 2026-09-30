@@ -245,4 +245,52 @@ class StreamParserTest {
 
         assertEquals(null, streams.single().streamType)
     }
+
+    @Test
+    fun `parse keeps ytId only stream`() {
+        val streams = StreamParser.parse(
+            payload = """{"streams":[{"name":"Trailer","ytId":"dQw4w9WgXcQ"}]}""",
+            addonName = "YouTubio",
+            addonId = "addon:youtubio",
+        )
+
+        val stream = streams.single()
+        assertEquals("dQw4w9WgXcQ", stream.ytId)
+        assertTrue(stream.isYouTube)
+    }
+
+    @Test
+    fun `parse strips yt_id prefix`() {
+        val streams = StreamParser.parse(
+            payload = """{"streams":[{"ytId":"yt_id:dQw4w9WgXcQ"}]}""",
+            addonName = "YouTubio",
+            addonId = "addon:youtubio",
+        )
+
+        assertEquals("dQw4w9WgXcQ", streams.single().ytId)
+    }
+
+    @Test
+    fun `parse classifies YouTube externalUrl`() {
+        val streams = StreamParser.parse(
+            payload = """{"streams":[{"externalUrl":"https://www.youtube.com/watch?v=dQw4w9WgXcQ"}]}""",
+            addonName = "YouTubio",
+            addonId = "addon:youtubio",
+        )
+
+        val stream = streams.single()
+        assertTrue(stream.isYouTube)
+        assertFalse(stream.shouldOpenExternally)
+    }
+
+    @Test
+    fun `parse still drops streams without any source`() {
+        val streams = StreamParser.parse(
+            payload = """{"streams":[{"name":"Nothing"}]}""",
+            addonName = "YouTubio",
+            addonId = "addon:youtubio",
+        )
+
+        assertTrue(streams.isEmpty())
+    }
 }

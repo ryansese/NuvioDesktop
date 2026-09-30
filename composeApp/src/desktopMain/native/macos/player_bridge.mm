@@ -85,6 +85,7 @@ static constexpr double kMaxVolumePercent = 200.0;
 @interface MpvWebPlayer : NSObject
 - (instancetype)initWithHostView:(NSView *)hostView
                        sourceUrl:(NSString *)sourceUrl
+                        audioUrl:(NSString *)audioUrl
                     headerLines:(NSArray<NSString *> *)headerLines
                    playWhenReady:(BOOL)playWhenReady
                 initialPositionMs:(long long)initialPositionMs
@@ -1085,6 +1086,7 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
 
 - (instancetype)initWithHostView:(NSView *)hostView
                        sourceUrl:(NSString *)sourceUrl
+                        audioUrl:(NSString *)audioUrl
                     headerLines:(NSArray<NSString *> *)headerLines
                    playWhenReady:(BOOL)playWhenReady
                 initialPositionMs:(long long)initialPositionMs
@@ -1185,6 +1187,7 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
     });
 
     [self startMpvWithSource:sourceUrl
+                    audioUrl:audioUrl
                  headerLines:headerLines
                 playWhenReady:playWhenReady
              initialPositionMs:initialPositionMs
@@ -1468,6 +1471,7 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
 }
 
 - (void)startMpvWithSource:(NSString *)sourceUrl
+                 audioUrl:(NSString *)audioUrl
                headerLines:(NSArray<NSString *> *)headerLines
               playWhenReady:(BOOL)playWhenReady
            initialPositionMs:(long long)initialPositionMs
@@ -1519,6 +1523,14 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
         }
         NSString *headers = [escaped componentsJoinedByString:@","];
         setMpvOptionString(_mpv, "http-header-fields", headers.UTF8String);
+    }
+
+    if (audioUrl.length > 0) {
+        // Separate audio track (e.g. YouTube DASH). "%n%" length-prefixes the value so the
+        // ':' and ',' inside the URL are not treated as list separators by mpv.
+        const char *audioUtf8 = audioUrl.UTF8String;
+        NSString *audioOption = [NSString stringWithFormat:@"%%%zu%%%s", strlen(audioUtf8), audioUtf8];
+        setMpvOptionString(_mpv, "audio-file", audioOption.UTF8String);
     }
 
     int initResult = mpv_initialize(_mpv);
@@ -2708,6 +2720,7 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_create(
     jobject /* bridge */,
     jlong hostViewPtr,
     jstring sourceUrl,
+    jstring audioUrl,
     jobjectArray headerLines,
     jboolean playWhenReady,
     jlong initialPositionMs,
@@ -2741,6 +2754,7 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_create(
     }
 
     std::string source = jstringToString(env, sourceUrl);
+    std::string audio = jstringToString(env, audioUrl);
     std::string controls = jstringToString(env, controlsPageUrl);
     NSArray<NSString *> *headers = jstringArrayToNSArray(env, headerLines);
     __block MpvWebPlayer *player = nil;
@@ -2750,6 +2764,7 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_create(
             player = [[MpvWebPlayer alloc]
                 initWithHostView:hostView
                     sourceUrl:[NSString stringWithUTF8String:source.c_str()]
+                     audioUrl:[NSString stringWithUTF8String:audio.c_str()]
                     headerLines:headers
                    playWhenReady:playWhenReady == JNI_TRUE
                 initialPositionMs:initialPositionMs

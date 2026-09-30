@@ -38,6 +38,7 @@ import kotlin.concurrent.Volatile
 internal typealias NativePlayerCreate = (
     Long,
     String,
+    String,
     Array<String>,
     Boolean,
     Long,
@@ -115,6 +116,7 @@ internal class NativePlayerController(
 
     fun attach(
         sourceUrl: String,
+        sourceAudioUrl: String? = null,
         sourceHeaders: Map<String, String>,
         playWhenReady: Boolean,
         initialPositionMs: Long,
@@ -124,6 +126,7 @@ internal class NativePlayerController(
     ) {
         val pending = PendingSource(
             sourceUrl = sourceUrl,
+            audioUrl = sourceAudioUrl?.trim().orEmpty(),
             headerLines = sourceHeaders.toHeaderLines(),
             playWhenReady = playWhenReady,
             initialPositionMs = initialPositionMs.coerceAtLeast(0L),
@@ -150,7 +153,7 @@ internal class NativePlayerController(
             return
         }
         log.d {
-            "attach requested source=${sourceUrl.toPlaybackLogKey()} headers=${sourceHeaders.size} " +
+            "attach requested source=${sourceUrl.toPlaybackLogKey()} separateAudio=${!sourceAudioUrl.isNullOrBlank()} headers=${sourceHeaders.size} " +
                 "playWhenReady=$playWhenReady initialPositionMs=$initialPositionMs decoderPriority=$decoderPriority"
         }
         host.onPeerReady = { attachPending() }
@@ -297,6 +300,7 @@ internal class NativePlayerController(
                     nativeCreate(
                         hostViewPtr,
                         resolvedSource,
+                        pending.audioUrl,
                         pending.headerLines.toTypedArray(),
                         pending.playWhenReady,
                         pending.initialPositionMs,
@@ -1158,6 +1162,7 @@ private fun Int.toHexByte(): String {
 
 private data class PendingSource(
     val sourceUrl: String,
+    val audioUrl: String,
     val headerLines: List<String>,
     val playWhenReady: Boolean,
     val initialPositionMs: Long,

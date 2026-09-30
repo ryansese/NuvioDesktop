@@ -201,6 +201,7 @@ object StreamAutoPlaySelector {
         activeResolverProviderId: String?,
     ): Boolean =
         playableDirectUrl != null ||
+            isYouTube ||
             (
                 AppFeaturePolicy.p2pEnabled &&
                     needsLocalDebridResolve &&

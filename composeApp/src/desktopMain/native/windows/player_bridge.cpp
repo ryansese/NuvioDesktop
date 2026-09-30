@@ -843,6 +843,7 @@ public:
     void initialize(
         HWND host,
         const std::string &sourceUrl,
+        const std::string &audioUrlValue,
         const std::vector<std::string> &headerLines,
         bool playWhenReady,
         long long initialPositionMs,
@@ -861,6 +862,7 @@ public:
         eventSink = sink;
         eventMethod = method;
         hostHwnd = host;
+        audioUrl = audioUrlValue;
 
         auto initState = std::make_shared<InitializationState>();
         auto self = shared_from_this();
@@ -1276,6 +1278,7 @@ public:
 
 private:
     HWND hostHwnd = nullptr;
+    std::string audioUrl;
     HWND containerHwnd = nullptr;
     HWND messageHwnd = nullptr;
     DWORD uiThreadId = 0;
@@ -1667,6 +1670,13 @@ private:
             int widResult = api.setOption(mpv, "wid", MPV_FORMAT_INT64, &wid);
             if (widResult < 0) {
                 throw std::runtime_error(std::string("mpv wid option failed: ") + api.errorText(widResult));
+            }
+
+            if (!audioUrl.empty()) {
+                // Separate audio track (e.g. YouTube DASH). "%n%" length-prefixes the value so the
+                // ';' and ',' inside the URL are not treated as list separators by mpv.
+                std::string audioOption = "%" + std::to_string(audioUrl.size()) + "%" + audioUrl;
+                setMpvOptionStringLocked("audio-file", audioOption.c_str());
             }
 
             if (!headerLines.empty()) {
@@ -2252,6 +2262,7 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_create(
     jobject,
     jlong hostViewPtr,
     jstring sourceUrl,
+    jstring audioUrl,
     jobjectArray headerLines,
     jboolean playWhenReady,
     jlong initialPositionMs,
@@ -2262,6 +2273,7 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_create(
 ) {
     HWND hostHwnd = (HWND)(intptr_t)hostViewPtr;
     std::string sourceUrlText = jstringToUtf8(env, sourceUrl);
+    std::string audioUrlText = audioUrl ? jstringToUtf8(env, audioUrl) : std::string();
     std::vector<std::string> headerLineValues = jstringArrayToVector(env, headerLines);
     std::string controlsPageUrlText = jstringToUtf8(env, controlsPageUrl);
     JavaVM *javaVm = nullptr;
@@ -2286,6 +2298,7 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_create(
         player->initialize(
             hostHwnd,
             sourceUrlText,
+            audioUrlText,
             headerLineValues,
             playWhenReady == JNI_TRUE,
             initialPositionMs,

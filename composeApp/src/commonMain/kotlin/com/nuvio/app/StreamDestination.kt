@@ -40,6 +40,7 @@ import com.nuvio.app.features.streams.StreamsScreen
 import com.nuvio.app.features.streams.shouldShowAutoPlayLoading
 import com.nuvio.app.features.streams.shouldUseLandscapeAutoPlayLoading
 import com.nuvio.app.features.streams.StreamsUiState
+import com.nuvio.app.features.trailer.TrailerPlaybackResolver
 import com.nuvio.app.navigation.*
 import kotlinx.coroutines.launch
 import nuvio.composeapp.generated.resources.*
@@ -222,6 +223,47 @@ internal fun StreamDestination(
                 popUpTo<StreamRoute> { inclusive = true }
             }
         }
+    }
+
+    // YouTube streams are resolved in-app and always play in the internal player.
+    // The resolved URL is short-lived, so it is intentionally never written to StreamLinkCacheRepository.
+    suspend fun resolveYouTubePlayerLaunch(
+        stream: StreamItem,
+        resumePositionMs: Long?,
+        resumeProgressFraction: Float?,
+    ): PlayerLaunch? {
+        val watchUrl = stream.youtubeWatchUrl ?: return null
+        val source = runCatching { TrailerPlaybackResolver.resolveFromYouTubeUrl(watchUrl) }
+            .getOrNull()
+            ?: return null
+        return PlayerLaunch(
+            profileId = launch.profileId,
+            title = launch.title,
+            sourceUrl = source.videoUrl,
+            sourceAudioUrl = source.audioUrl,
+            externalSubtitles = stream.externalSubtitles,
+            streamType = stream.streamType,
+            logo = launch.logo,
+            poster = launch.poster,
+            background = launch.background,
+            seasonNumber = launch.seasonNumber,
+            episodeNumber = launch.episodeNumber,
+            episodeTitle = launch.episodeTitle,
+            episodeThumbnail = launch.episodeThumbnail,
+            streamTitle = stream.streamLabel,
+            streamSubtitle = stream.streamSubtitle,
+            bingeGroup = stream.behaviorHints.bingeGroup,
+            pauseDescription = pauseDescription,
+            providerName = stream.addonName,
+            providerAddonId = stream.addonId,
+            contentType = launch.type,
+            videoId = effectiveVideoId,
+            parentMetaId = launch.parentMetaId ?: effectiveVideoId,
+            parentMetaType = launch.parentMetaType ?: launch.type,
+            initialPositionMs = resumePositionMs ?: 0L,
+            initialProgressFraction = resumeProgressFraction,
+            contentLanguage = resolveLaunchContentLanguage(),
+        )
     }
 
     fun requestOrOpenP2pStream(
@@ -413,6 +455,32 @@ internal fun StreamDestination(
         } else {
             selectedStream
         }
+        if (stream.isYouTube) {
+            autoPlayHandled = true
+            StreamsRepository.setOverlayVisible(true, getString(Res.string.youtube_resolving_stream))
+            val playerLaunch = resolveYouTubePlayerLaunch(
+                stream = stream,
+                resumePositionMs = launch.resumePositionMs,
+                resumeProgressFraction = launch.resumeProgressFraction,
+            )
+            if (playerLaunch == null) {
+                autoPlayHandled = false
+                StreamsRepository.setOverlayVisible(false)
+                val hasNextCandidate = StreamsRepository.skipAutoPlayStream(selectedStream)
+                if (!hasNextCandidate) {
+                    NuvioToastController.show(getString(Res.string.youtube_stream_resolve_failed))
+                }
+                return@LaunchedEffect
+            }
+            StreamsRepository.consumeAutoPlay()
+            StreamsRepository.cancelLoading()
+            autoPlayNavigationStarted = true
+            val launchId = PlayerLaunchStore.put(playerLaunch)
+            navController.navigate(PlayerRoute(launchId = launchId, title = playerLaunch.title)) {
+                popUpTo<StreamRoute> { inclusive = true }
+            }
+            return@LaunchedEffect
+        }
         val sourceUrl = stream.playableDirectUrl
         if (sourceUrl == null && stream.needsLocalDebridResolve && stream.p2pInfoHash != null) {
             autoPlayHandled = true
@@ -570,6 +638,28 @@ internal fun StreamDestination(
                 forceInternal = forceInternal,
                 isAutoPlay = false,
             )
+            return
+        }
+        if (stream.isYouTube) {
+            if (resolvingDebridStream) return
+            streamRouteScope.launch {
+                resolvingDebridStream = true
+                val playerLaunch = resolveYouTubePlayerLaunch(
+                    stream = stream,
+                    resumePositionMs = resolvedResumePositionMs,
+                    resumeProgressFraction = resolvedResumeProgressFraction,
+                )
+                resolvingDebridStream = false
+                if (playerLaunch == null) {
+                    NuvioToastController.show(getString(Res.string.youtube_stream_resolve_failed))
+                    return@launch
+                }
+                val launchId = PlayerLaunchStore.put(playerLaunch)
+                StreamsRepository.cancelLoading()
+                navController.navigate(
+                    PlayerRoute(launchId = launchId, title = playerLaunch.title)
+                )
+            }
             return
         }
         if (stream.shouldOpenExternally) {

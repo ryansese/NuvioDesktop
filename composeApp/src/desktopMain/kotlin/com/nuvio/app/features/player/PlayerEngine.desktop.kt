@@ -69,6 +69,7 @@ actual fun PlatformPlayerSurface(
     ) {
         NativePlayerSurface(
             sourceUrl = sourceUrl,
+            sourceAudioUrl = sourceAudioUrl,
             sourceAvailable = sourceAvailable,
             sourceHeaders = sourceHeaders,
             modifier = modifier,
@@ -101,6 +102,7 @@ actual fun PlatformPlayerSurface(
 @Composable
 private fun NativePlayerSurface(
     sourceUrl: String,
+    sourceAudioUrl: String?,
     sourceAvailable: Boolean,
     sourceHeaders: Map<String, String>,
     modifier: Modifier,
@@ -171,7 +173,7 @@ private fun NativePlayerSurface(
         )
     }
 
-    DisposableEffect(controller, sourceAvailable, sourceUrl, playbackHeaders) {
+    DisposableEffect(controller, sourceAvailable, sourceUrl, sourceAudioUrl, playbackHeaders) {
         onDispose { controller.dispose() }
     }
 
@@ -192,6 +194,7 @@ private fun NativePlayerSurface(
         controller,
         sourceAvailable,
         sourceUrl,
+        sourceAudioUrl,
         playbackHeaders,
         decoderPriority,
         nvidiaRtxSuperResolutionEnabled,
@@ -205,6 +208,7 @@ private fun NativePlayerSurface(
         delay(16L)
         controller.attach(
             sourceUrl = sourceUrl,
+            sourceAudioUrl = sourceAudioUrl,
             sourceHeaders = playbackHeaders,
             playWhenReady = playWhenReady,
             initialPositionMs = initialPositionMs,

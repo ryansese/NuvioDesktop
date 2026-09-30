@@ -37,6 +37,7 @@ internal object NativePlayerBridge {
     external fun create(
         hostViewPtr: Long,
         sourceUrl: String,
+        audioUrl: String,
         headerLines: Array<String>,
         playWhenReady: Boolean,
         initialPositionMs: Long,

@@ -124,6 +124,53 @@ class StreamModelsTest {
         assertFalse(stream.shouldOpenExternally)
     }
 
+    @Test
+    fun `ytId stream is YouTube and not opened externally`() {
+        val stream = stream(ytId = "dQw4w9WgXcQ")
+
+        assertTrue(stream.isYouTube)
+        assertEquals("https://www.youtube.com/watch?v=dQw4w9WgXcQ", stream.youtubeWatchUrl)
+        assertFalse(stream.shouldOpenExternally)
+        assertTrue(stream.hasPlayableSource)
+        assertTrue(stream.isSelectableForPlayback(debridEnabled = false))
+    }
+
+    @Test
+    fun `YouTube externalUrl variants are classified as YouTube`() {
+        listOf(
+            "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            "https://youtube.com/watch?feature=x&v=dQw4w9WgXcQ",
+            "https://m.youtube.com/watch?v=dQw4w9WgXcQ",
+            "https://www.youtube.com/shorts/dQw4w9WgXcQ",
+            "https://www.youtube.com/embed/dQw4w9WgXcQ",
+            "https://youtu.be/dQw4w9WgXcQ",
+        ).forEach { url ->
+            val stream = stream(externalUrl = url)
+            assertTrue(stream.isYouTube, url)
+            assertEquals(url, stream.youtubeWatchUrl)
+            assertFalse(stream.shouldOpenExternally, url)
+            assertTrue(stream.isSelectableForPlayback(debridEnabled = false), url)
+        }
+    }
+
+    @Test
+    fun `non YouTube externalUrl is not classified as YouTube`() {
+        val stream = stream(externalUrl = "https://example.com/watch?v=abcdefghijk")
+
+        assertFalse(stream.isYouTube)
+        assertTrue(stream.shouldOpenExternally)
+    }
+
+    @Test
+    fun `YouTube externalUrl with direct url is not a YouTube stream`() {
+        val stream = stream(
+            url = "https://cdn.example.com/video.mp4",
+            externalUrl = "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+        )
+
+        assertFalse(stream.isYouTube)
+    }
+
     // -----------------------------------------------------------------------
     // p2pInfoHash extraction
     // -----------------------------------------------------------------------
@@ -316,11 +363,13 @@ class StreamModelsTest {
         infoHash: String? = null,
         fileIdx: Int? = null,
         externalUrl: String? = null,
+        ytId: String? = null,
     ): StreamItem = StreamItem(
         url = url,
         infoHash = infoHash,
         fileIdx = fileIdx,
         externalUrl = externalUrl,
+        ytId = ytId,
         addonName = "TestAddon",
         addonId = "test.addon",
     )

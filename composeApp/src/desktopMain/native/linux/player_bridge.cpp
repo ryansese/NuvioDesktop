@@ -1526,7 +1526,7 @@ JNIEXPORT jboolean JNICALL NP(initGtkEarly)(JNIEnv *, jobject) {
 
 JNIEXPORT jlong JNICALL NP(create)(
     JNIEnv *env, jobject /*thiz*/, jlong hostViewPtr, jstring sourceUrl,
-    jobjectArray headerLines, jboolean playWhenReady, jlong initialPositionMs,
+    jstring audioUrl, jobjectArray headerLines, jboolean playWhenReady, jlong initialPositionMs,
     jstring controlsPageUrl, jint decoderPriority,
     jboolean /*nvidiaRtxSuperResolutionEnabled*/, jobject eventSink) {
 
@@ -1549,6 +1549,14 @@ JNIEXPORT jlong JNICALL NP(create)(
         NUVIO_LOG("embedding into X11 wid=%s", wid.c_str());
     } else {
         NUVIO_ERR("hostViewPtr is 0 — no window to embed into");
+    }
+
+    // Separate audio track (e.g. YouTube DASH). "%n%" length-prefixes the value so the
+    // ':' and ',' inside the URL are not treated as list separators by mpv.
+    std::string audioOption;
+    if (audioUrl != nullptr) {
+        std::string audio = jstringToUtf8(env, audioUrl);
+        if (!audio.empty()) audioOption = "%" + std::to_string(audio.size()) + "%" + audio;
     }
 
     // Forward addon/debrid HTTP headers verbatim.
@@ -1624,6 +1632,9 @@ JNIEXPORT jlong JNICALL NP(create)(
 
         if (!headerFields.empty()) {
             mpv_set_option_string(m, "http-header-fields", headerFields.c_str());
+        }
+        if (!audioOption.empty()) {
+            mpv_set_option_string(m, "audio-file", audioOption.c_str());
         }
         if (initialPositionMs > 0) {
             std::string start = std::to_string(initialPositionMs / 1000.0);
